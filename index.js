@@ -8,7 +8,15 @@ dotenv.config();
 const app = express();
 app.use(express.json());
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+// Safe initialization (agar key na ho tab bhi server crash nahi hoga)
+const openai = process.env.OPENAI_API_KEY 
+  ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) 
+  : null;
+
+// Health check route
+app.get('/', (req, res) => {
+  res.send('KYRO WhatsApp AI Server is Running Live! 🚀');
+});
 
 // Meta Webhook Verification
 app.get('/webhook', (req, res) => {
@@ -42,6 +50,10 @@ app.post('/webhook', async (req, res) => {
 
 // AI Response Logic
 async function getAIResponse(userText) {
+  if (!openai) {
+    return 'Namaste! KYRO Service Hub mein swagat hai. Kripya apna vehicle model aur problem batayein.';
+  }
+
   try {
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
@@ -50,7 +62,7 @@ async function getAIResponse(userText) {
           role: 'system',
           content: `You are KYRO, a polite and smart vehicle service assistant in India.
 - Reply naturally in the customer's language (Hinglish, Hindi, Telugu, or English).
-- Collect details step by step: Bike/Car model, Issue/Service required, Pickup or Drop, Time slot, and Area.
+- Collect details step by step: Vehicle model, Issue/Service required, Pickup or Drop, Time slot, and Area.
 - Keep answers short, helpful, and under 3-4 lines.`
         },
         { role: 'user', content: userText }
@@ -61,12 +73,17 @@ async function getAIResponse(userText) {
     return completion.choices[0].message.content;
   } catch (error) {
     console.error('AI Error:', error.message);
-    return 'Namaste! KYRO Service Hub mein swagat hai. Kripya apna vehicle model aur issue batayein.';
+    return 'Namaste! KYRO mein connect karne ke liye shukriya. Hamari team aapse jald hi sampark karegi.';
   }
 }
 
-// WhatsApp API Sender
+// WhatsApp Sender
 async function sendWhatsAppMessage(to, text) {
+  if (!process.env.WHATSAPP_TOKEN || !process.env.WHATSAPP_PHONE_NUMBER_ID) {
+    console.log('WhatsApp credentials missing. Generated reply:', text);
+    return;
+  }
+
   try {
     await axios.post(
       `https://graph.facebook.com/v20.0/${process.env.WHATSAPP_PHONE_NUMBER_ID}/messages`,
